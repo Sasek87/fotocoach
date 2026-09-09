@@ -1,0 +1,69 @@
+name: Compilar FotoCoach APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configurar Android
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar SDK Android
+        run: |
+          sdkmanager "platforms;android-37"
+          sdkmanager "build-tools;36.0.0"
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Compilar FotoCoach
+        run: gradle :app:assembleDebug
+
+      - name: Preparar instalador web
+        run: |
+          mkdir -p site
+          cp web/index.html site/index.html
+          cp app/build/outputs/apk/debug/app-debug.apk site/FotoCoach.apk
+          sha256sum site/FotoCoach.apk | awk '{print $1}' > site/checksum.txt
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Subir página
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publicar FotoCoach
+        id: deployment
+        uses: actions/deploy-pages@v4
